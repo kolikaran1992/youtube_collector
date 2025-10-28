@@ -1,0 +1,4 @@
+[default]
+now_iso = "@jinja {{this._get_now_iso(this.tz)}}"
+start_ts = "@jinja {{this._get_start_ts(this.tz)}}"
+tz = "Asia/Kolkata"

@@ -1,0 +1,106 @@
+# --- Install dependency quietly ---
+import os, time, random
+import json
+from pathlib import Path
+
+os.system("pip install -q yt-dlp")
+
+
+import yt_dlp
+
+# --- CONFIG (templated) ---
+VIDEO_IDS = {{video_ids_list}}           # e.g. ["abc123", "def456"]
+TOTAL_SECONDS = 60 * {{minutes_to_use}}  # e.g. 30 min = 1800
+MAX_RETRY_JITTER = 10                   # max seconds to sleep between retries
+
+# --- Sleep schedule generator ---
+def random_sleep_schedule(items, total_time):
+    """Return random sleep intervals summing exactly to total_time."""
+    n = len(items)
+    if n <= 1:
+        return [0]
+    weights = [random.random() for _ in range(n)]
+    scale = total_time / sum(weights)
+    return [w * scale for w in weights]
+
+# --- Info collection function ---
+def fetch_video_info(video_id: str, time_budget: float):
+    """Try to fetch and save video info; retrying only while within the time_budget."""
+    start = time.time()
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    
+    # Options are less restrictive than caption download as we don't need to write files here.
+    opts = {
+        "skip_download": True,
+        "quiet": True,
+        "retries": 3,
+        "fragment_retries": 3,
+        "nocheckcertificate": True,
+    }
+
+    attempt = 0
+    while True:
+        elapsed = time.time() - start
+        remaining = time_budget - elapsed
+        if remaining <= 0:
+            print(f"[timeout] {video_id} after {attempt} attempts")
+            return False
+
+        attempt += 1
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                # ydl.extract_info is used for metadata collection
+                info = ydl.extract_info(url, download=False)
+                
+                # Filter keys as requested by the user's provided helper logic
+                rel_keys = [
+                    'categories',
+                    'age_limit',
+                    'tags',
+                    'comment_count',
+                    'chapters',
+                    'audio_channels',
+                    'timestamp', # Use timestamp for upload time
+                    'duration', # Add duration as it's useful metadata
+                ]
+                
+                # Also include ID, title, uploader for context
+                rel_keys_base = ['id', 'title', 'uploader'] 
+                
+                # Use .get(key) for safe access
+                rel_info = {key: info.get(key) for key in (rel_keys_base + rel_keys)} 
+
+            # Save the collected info to a JSON file in the current working directory (Kaggle output folder)
+            output_file = Path(f"{video_id}.json")
+            with open(output_file, 'w') as f:
+                json.dump(rel_info, f, indent=4)
+                
+            print(f"[ok] {video_id} info saved to {output_file.name} (attempt {attempt})")
+            return True
+        except Exception as e:
+            remaining = time_budget - (time.time() - start)
+            if remaining <= 0:
+                print(f"[fail] {video_id} (budget exhausted after {attempt} attempts)")
+                return False
+
+            sleep_time = min(random.uniform(1, MAX_RETRY_JITTER), remaining)
+            print(f"[retry {attempt}] {video_id}: {e} | sleep {sleep_time:.1f}s (remaining {remaining:.1f}s)")
+            time.sleep(sleep_time)
+
+
+# --- Main loop ---
+if VIDEO_IDS:
+    sleeps = random_sleep_schedule(VIDEO_IDS, TOTAL_SECONDS)
+    start_all = time.time()
+
+    for vid, next_sleep in zip(VIDEO_IDS, sleeps):
+        print(f"▶ Processing {vid}")
+        fetch_video_info(vid, next_sleep) 
+        elapsed = time.time() - start_all
+        print(f"sleep {next_sleep:.2f}s | total elapsed {elapsed/60:.1f} min\n")
+        time.sleep(max(0, next_sleep - (time.time() - start_all - elapsed)))
+
+    total_elapsed = time.time() - start_all
+    print(f"✅ Completed {len(VIDEO_IDS)} videos in {total_elapsed/60:.1f} min")
+else:
+    print("⚠️ No videos provided.")
