@@ -4,6 +4,7 @@ import sys
 import traceback
 import re
 from pathlib import Path
+from uuid import uuid1
 from typing import Dict, Any, Optional
 from slack_messenger import send_slack_message
 
@@ -24,7 +25,7 @@ except ImportError:
 from yt_collector.job_queue import JobQueue
 
 # --- Configuration Loading and Constants ---
-SLACK_MESSAGE_HEADER = f'*YT-COLLECTOR-JOB: `{Path(__file__).name}`*'
+SLACK_MESSAGE_HEADER = f'*YT-COLLECTOR-{uuid1().hex[:8]}: `{Path(__file__).name}`*'
 
 try:
     CHANNELS_TO_MONITOR: list[str] = YT_CONFIG.channels_to_monitor
@@ -33,10 +34,6 @@ try:
     DESTINATION_QUEUE: JobQueue = JobQueue(YT_CONFIG.yt_caption_fetching_queue_dir)
     YT_INFO_QUEUE: JobQueue = JobQueue(YT_CONFIG.yt_info_fetching_queue_dir)
     RESTING_QUEUE: JobQueue = JobQueue(YT_CONFIG.resting_queue_dir)
-    # Configuration keys needed for the complex duplicate check utility
-    # PROCESSING_CAPTION_VIDEO_URL_QUEUE: str = YT_CONFIG.PROCESSING_CAPTION_VIDEO_URL_QUEUE
-    # VIDEO_AUTOMATIC_CAPTIONS: str = YT_CONFIG.VIDEO_AUTOMATIC_CAPTIONS
-    # PROCESSING_INFO_COLLECTION_VIDEO_URL_QUEUE: str = YT_CONFIG.processing_info_collection_video_url_queue
 except AttributeError as e:
     print(f"Error: Required configuration value not found in config: {e}")
     sys.exit(1)
@@ -82,14 +79,14 @@ def fetch_top_urls_and_push(raw_channel_name: str) -> int:
     """
     Fetches minimal metadata for new videos from a channel and pushes them to the JobQueue.
     The JobQueue is initialized for the channel-specific subdirectory.
-    
+
     Returns:
         int: The total number of new video URLs added to the queue.
     """
-        
+
     new_urls_processed = 0
     channel_url = f"https://www.youtube.com/@{raw_channel_name}/videos"
-    
+
     logger.info("--- YouTube Minimal Metadata Fetcher (Integrated) ---")
     logger.info(f"Channel URL: {channel_url}")
     logger.info(f"Max New URLs to Process: {MAX_NEW_URLS}")
@@ -103,55 +100,50 @@ def fetch_top_urls_and_push(raw_channel_name: str) -> int:
         "cookiesfrombrowser": ("chrome", "Default"),
     }
 
-    try:
-        with YoutubeDL(channel_ydl_opts) as ydl:
-            info_dict = ydl.extract_info(channel_url, download=False)
+    with YoutubeDL(channel_ydl_opts) as ydl:
+        info_dict = ydl.extract_info(channel_url, download=False)
 
-            if info_dict is None or "entries" not in info_dict:
-                logger.warning("Could not find video entries from the channel URL. Aborting.")
-                return 0
+        if info_dict is None or "entries" not in info_dict:
+            logger.warning("Could not find video entries from the channel URL. Aborting.")
+            return 0
 
-            entries = info_dict.get("entries", [])
-            logger.info(f"Found {len(entries)} entries in the fast list.")
+        entries = info_dict.get("entries", [])
+        logger.info(f"Found {len(entries)} entries in the fast list.")
 
-            # Iterate through entries (which are sorted Newest -> Oldest)
-            for entry in entries:
-                if new_urls_processed >= MAX_NEW_URLS:
-                    logger.info(f"Limit of {MAX_NEW_URLS} new URLs reached. Stopping iteration.")
-                    break
+        # Iterate through entries (which are sorted Newest -> Oldest)
+        for entry in entries:
+            if new_urls_processed >= MAX_NEW_URLS:
+                logger.info(f"Limit of {MAX_NEW_URLS} new URLs reached. Stopping iteration.")
+                break
 
-                video_id: Optional[str] = entry.get("id")
-                video_url: Optional[str] = entry.get("url")
+            video_id: Optional[str] = entry.get("id")
+            video_url: Optional[str] = entry.get("url")
 
-                if not video_id or not video_url:
-                    continue
+            if not video_id or not video_url:
+                continue
 
-                if video_id_already_exists_in_system(video_id):
-                    continue
+            if video_id_already_exists_in_system(video_id):
+                continue
 
-                # 1. Extract minimal metadata
-                minimal_metadata: Dict[str, Any] = {
-                    "url": video_url,
-                    "video_id": video_id,
-                    "title": entry.get("title", "No Title"),
-                    "description": entry.get("description"),
-                    "view_count": entry.get("view_count"),
-                    "channel_name": raw_channel_name # Add raw channel name for context
-                }
+            # 1. Extract minimal metadata
+            minimal_metadata: Dict[str, Any] = {
+                "url": video_url,
+                "video_id": video_id,
+                "title": entry.get("title", "No Title"),
+                "description": entry.get("description"),
+                "view_count": entry.get("view_count"),
+                "channel_name": raw_channel_name # Add raw channel name for context
+            }
 
-                logger.info(f"  [PROCESS] New video {video_id}. Title: {minimal_metadata['title']}")
+            logger.info(f"  [PROCESS] New video {video_id}. Title: {minimal_metadata['title']}")
 
-                # 2. Push to JobQueue (This replaces save_metadata_to_queue)
-                DESTINATION_QUEUE.push(video_id, minimal_metadata)
-                new_urls_processed += 1
+            # 2. Push to JobQueue (This replaces save_metadata_to_queue)
+            DESTINATION_QUEUE.push(video_id, minimal_metadata)
+            new_urls_processed += 1
 
-            logger.info("--- Fetch Complete ---")
-            logger.info(f"Total new videos added to queue: {new_urls_processed}")
-            return new_urls_processed
-
-    except Exception as e:
-        logger.error(f"An unexpected error occurred during channel fetch: {e}", exc_info=True)
-        return 0
+        logger.info("--- Fetch Complete ---")
+        logger.info(f"Total new videos added to queue: {new_urls_processed}")
+        return new_urls_processed
 
 
 def calculate_total_queue_size() -> int:
@@ -176,12 +168,12 @@ def run_cron_fetcher():
         except Exception as e:
             tb = traceback.format_exc()
             error_message = (
-                f"🚨 **Channel Error:** Failed to process channel `{channel_name}`.\n"
-                f"**Error Details:** {e}\n"
-                f"**Traceback:**\n```\n{tb}\n```"
+                f"🚨 *Channel Error*: Failed to process channel `{channel_name}`.\n"
+                f"*Error Details*: {e}\n"
+                f"*Traceback*:\n```\n{tb}\n```"
             )
             logger.error(f"An error occurred while processing channel {channel_name}: {e}")
-            send_slack_message(message=error_message)
+            send_slack_message(message=error_message, header=SLACK_MESSAGE_HEADER)
 
         # 2. Add Jitter (Delay) between 0 and 60 seconds for the next channel
         if i < len(CHANNELS_TO_MONITOR) - 1:
