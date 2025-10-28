@@ -13,3 +13,7 @@ name = "youtube_summarizer"
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 version = "0.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.2"
+
