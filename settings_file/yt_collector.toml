@@ -1,15 +1,18 @@
 [default]
+KAGGLE_JOB_MINUTES_QOUTA = 5
+
 # Process New Urls
 MAX_NEW_URLS_TO_FETCH = 2
 
 # YT automatic caption kaggle job
 KAGGLE_JOB_MAXIMUM_URLS_TO_PROCESS = 10
-KAGGLE_JOB_MINUTES_QOUTA = 5
 KAGGLE_JOB_YT_CAPTION_TEMPLATE_FILE = 'yt_collector/kaggle_job_caption.txt'
+kaggle_output_dir_yt_captions = '@jinja {{this.base_metadata_dir}}/kaggle_outputs/yt_captions'
 
 # YT info collection kaggle job (Added)
 KAGGLE_JOB_INFO_COLLECTION_URLS_TO_PROCESS = 5
 KAGGLE_JOB_YT_INFO_COLLECTION_TEMPLATE_FILE = 'yt_collector/kaggle_job_info_collection.txt'
+kaggle_output_dir_yt_info = '@jinja {{this.base_metadata_dir}}/kaggle_outputs/yt_info'
 
 # Base directory for all collector data
 base_metadata_dir = 'tmp'
@@ -18,10 +21,6 @@ base_metadata_dir = 'tmp'
 resting_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/resting_queue' # final resting place of a job
 yt_caption_fetching_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/caption_fetching_queue' 
 yt_info_fetching_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/info_fetching_queue' 
-
-# kaggle output directories
-kaggle_output_dir_yt_captions = '@jinja {{this.base_metadata_dir}}/kaggle_outputs/yt_captions'
-kaggle_output_dir_yt_info = '@jinja {{this.base_metadata_dir}}/kaggle_outputs/yt_info'
 
 channels_to_monitor = [
   'Fireship',
