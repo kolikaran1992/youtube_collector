@@ -24,7 +24,7 @@ try:
     SOURCE_QUEUE = JobQueue(yt_config.yt_caption_fetching_queue_dir)
     # Destination queue for this script: jobs that need info fetched next
     DESTINATION_QUEUE = JobQueue(yt_config.yt_info_fetching_queue_dir)
-    MAX_URLS_TO_PROCESS = yt_config.KAGGLE_JOB_MAXIMUM_URLS_TO_PROCESS
+    MAX_URLS_TO_PROCESS = yt_config.KAGGLE_JOB_YT_CAPTION_URLS_TO_PROCESS
 except AttributeError as e:
     logger.exception(f'Error: Required configuration value not found in config: {e}')
     sys.exit(1)
