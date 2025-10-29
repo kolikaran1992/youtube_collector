@@ -120,7 +120,7 @@ def run_job():
     output_folder_posix = output_path.as_posix()
 
     kernel_type = 'cpu'
-    polling_freq = 15
+    polling_freq = config.kaggle_job_poll_minutes_yt_info
 
     nb_options = {
         'title': final_kernel_name,
