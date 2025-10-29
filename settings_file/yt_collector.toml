@@ -1,30 +1,24 @@
 [default]
-CAPTION_PROCESSING_PARALLEL_WORKERS = 4
-MAX_CAPTION_PROCESSING_URLS = 20
-MAX_NEW_URLS = 5
-MAX_QUEUE_PROCESSING_URLS = 20
-QUEUE_PROCESSING_PARALLEL_WORKERS = 4
-
-# YT automatic caption kaggle job
-KAGGLE_JOB_MAXIMUM_URLS_TO_PROCESS = 10
 KAGGLE_JOB_MINUTES_QOUTA = 5
-KAGGLE_JOB_YT_CAPTION_TEMPLATE_FILE = 'yt_collector/kaggle_job_caption.txt'
 
-# YT info collection kaggle job (Added)
-KAGGLE_JOB_INFO_COLLECTION_URLS_TO_PROCESS = 5
-KAGGLE_JOB_YT_INFO_COLLECTION_TEMPLATE_FILE = 'yt_collector/kaggle_job_info_collection.txt'
+# Process New Urls
+MAX_NEW_URLS_TO_FETCH = 2
 
 # Base directory for all collector data
-base_dir = 'data_new_test/yt_collector'
+base_metadata_dir = 'tmp' 
+resting_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/resting_queue' # final resting place of a job
 
-# Directories dynamically formatted using base_dir
-processing_caption_video_url_queue = '@jinja {{this.base_dir}}/caption_processing_queue'
-processing_info_collection_video_url_queue = '@jinja {{this.base_dir}}/info_collection_processing_queue'
-remaining_video_url_queue = '@jinja {{this.base_dir}}/queue'
-video_automatic_captions = '@jinja {{this.video_metadata_dir}}/automatic_captions'
-video_content_dir = '@jinja {{this.base_dir}}/downloaded_videos'
-video_detailed_info = '@jinja {{this.video_metadata_dir}}/detailed_info'
-video_metadata_dir = '@jinja {{this.base_dir}}/downloaded_videos_metadata'
+# YT automatic caption kaggle job
+KAGGLE_JOB_YT_CAPTION_URLS_TO_PROCESS = 10
+KAGGLE_JOB_YT_CAPTION_TEMPLATE_FILE = 'yt_collector/kaggle_job_caption.txt'
+kaggle_output_dir_yt_captions = '@jinja {{this.base_metadata_dir}}/kaggle_outputs/yt_captions'
+yt_caption_fetching_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/caption_fetching_queue'
+
+# YT info collection kaggle job
+KAGGLE_JOB_INFO_COLLECTION_URLS_TO_PROCESS = 5
+KAGGLE_JOB_YT_INFO_COLLECTION_TEMPLATE_FILE = 'yt_collector/kaggle_job_info_collection.txt'
+kaggle_output_dir_yt_info = '@jinja {{this.base_metadata_dir}}/kaggle_outputs/yt_info'
+yt_info_fetching_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/info_fetching_queue'
 
 channels_to_monitor = [
   'Fireship',
@@ -34,7 +28,7 @@ channels_to_monitor = [
 KAGGLE_JOB_INFO_COLLECTION_URLS_TO_PROCESS = 40
 KAGGLE_JOB_MAXIMUM_URLS_TO_PROCESS = 50
 KAGGLE_JOB_MINUTES_QOUTA = 40
-MAX_NEW_URLS = 10
+MAX_NEW_URLS_TO_FETCH = 10
 base_dir = '/home/limited_user/Data/youtube_scraped_metadata'
 channels_to_monitor = [
   'TinaHuang1',
