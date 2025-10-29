@@ -29,7 +29,7 @@ KAGGLE_JOB_INFO_COLLECTION_URLS_TO_PROCESS = 40
 KAGGLE_JOB_MAXIMUM_URLS_TO_PROCESS = 50
 KAGGLE_JOB_MINUTES_QOUTA = 40
 MAX_NEW_URLS_TO_FETCH = 10
-base_dir = '/home/limited_user/Data/youtube_scraped_metadata'
+base_metadata_dir = '@jinja {{this.home_dir}}/Data/youtube_scraper'
 channels_to_monitor = [
   'TinaHuang1',
   'realmattgray',
