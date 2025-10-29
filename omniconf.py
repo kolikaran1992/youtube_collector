@@ -2,7 +2,7 @@ from dynaconf import Dynaconf
 from datetime import datetime
 import pytz
 from pathlib import Path
-import logging
+import logging, os
 
 
 _NOW = datetime.now()
@@ -26,10 +26,10 @@ class DefaultFormatter(logging.Formatter):
 
 
 def get_logger() -> logging.Logger:
-    name = 'yt_collector'
+    name = "yt_collector"
     logger = logging.getLogger(name)
 
-    logger.setLevel(getattr(logging, 'INFO'))
+    logger.setLevel(getattr(logging, "INFO"))
 
     # Include log_file_path in the format string
     fmt = "[%(asctime)s] %(levelname)s [%(full_path)s]: %(message)s"
@@ -58,7 +58,7 @@ def _get_now_ts(tz: str) -> str:
 
 
 logger = get_logger()
-secrets_dir = Path('/home/limited_user/Documents/Secrets')
+secrets_dir = os.environ.get("SECRETS_DIRECTORY", None)
 config = Dynaconf(
     preload=["settings_file/settings.toml"],
     settings_files=["settings_file/yt_collector.toml"],
