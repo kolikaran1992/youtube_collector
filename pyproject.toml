@@ -7,6 +7,7 @@ dependencies = [
   "secretstorage (>=3.4.0,<4.0.0)",
   "dynaconf (>=3.2.12,<4.0.0)",
   "pandas (>=2.3.3,<3.0.0)",
+  "meter-call @ git+ssh://git@github.com/kolikaran1992/meter_call.git",
 ]
 description = "Add your description here"
 name = "youtube_summarizer"

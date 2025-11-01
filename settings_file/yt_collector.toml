@@ -9,8 +9,8 @@ base_metadata_dir = 'tmp'
 resting_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/resting_queue' # final resting place of a job
 
 # YT automatic caption kaggle job
-KAGGLE_JOB_YT_CAPTION_URLS_TO_PROCESS = 10
 KAGGLE_JOB_YT_CAPTION_TEMPLATE_FILE = 'yt_collector/kaggle_job_caption.txt'
+KAGGLE_JOB_YT_CAPTION_URLS_TO_PROCESS = 10
 kaggle_output_dir_yt_captions = '@jinja {{this.base_metadata_dir}}/kaggle_outputs/yt_captions'
 yt_caption_fetching_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/caption_fetching_queue'
 
@@ -22,7 +22,13 @@ yt_info_fetching_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/info_fetch
 
 channels_to_monitor = [
   'Fireship',
+  'ArjanCodes',
 ]
+
+# arjan codes lessons specific params
+arjan_codes_agent_output_dir = 'arjan_codes_lessons'
+arjan_codes_channel_name = 'arjancodes'
+arjan_codes_queue = '@jinja {{this.base_metadata_dir}}/queue/arjan_codes_queue'
 
 [cron]
 KAGGLE_JOB_INFO_COLLECTION_URLS_TO_PROCESS = 40
@@ -32,6 +38,6 @@ MAX_NEW_URLS_TO_FETCH = 10
 base_metadata_dir = '@jinja {{this.home_dir}}/Data/youtube_scraper'
 channels_to_monitor = [
   'TinaHuang1',
-  'realmattgray',
+  'wakemeupmornings',
   'Fireship',
 ]

@@ -18,21 +18,26 @@ except ImportError:
 try:
     from yt_dlp import YoutubeDL
 except ImportError:
-    logger.error("yt-dlp is not installed. Please install it using 'poetry add yt-dlp'.")
+    logger.error(
+        "yt-dlp is not installed. Please install it using 'poetry add yt-dlp'."
+    )
     sys.exit(1)
 
 # Import the new, local JobQueue class
 from yt_collector.job_queue import JobQueue
 
 # --- Configuration Loading and Constants ---
-SLACK_MESSAGE_HEADER = f'*YT-COLLECTOR-{uuid1().hex[:8]}: `{Path(__file__).name}`*'
+SLACK_MESSAGE_HEADER = f"*YT-COLLECTOR-{uuid1().hex[:8]}: `{Path(__file__).name}`*"
 
 try:
     CHANNELS_TO_MONITOR: list[str] = YT_CONFIG.channels_to_monitor
-    MAX_NEW_URLS: int = YT_CONFIG.MAX_NEW_URLS_TO_FETCH # Assuming MAX_NEW_URLS is available at top level config
+    MAX_NEW_URLS: int = (
+        YT_CONFIG.MAX_NEW_URLS_TO_FETCH
+    )  # Assuming MAX_NEW_URLS is available at top level config
     # The base path for the primary queue is required to initialize the JobQueue
     DESTINATION_QUEUE: JobQueue = JobQueue(YT_CONFIG.yt_caption_fetching_queue_dir)
     YT_INFO_QUEUE: JobQueue = JobQueue(YT_CONFIG.yt_info_fetching_queue_dir)
+    ARJAN_CODES_QUEUE: JobQueue = JobQueue(YT_CONFIG.arjan_codes_queue)
     RESTING_QUEUE: JobQueue = JobQueue(YT_CONFIG.resting_queue_dir)
 except AttributeError as e:
     print(f"Error: Required configuration value not found in config: {e}")
@@ -44,36 +49,45 @@ except Exception as e:
 
 # --- Utility Functions (Pulled in to centralize logic and reduce dependency) ---
 
+
 def sanitize_filename(text: str) -> str:
     """Converts text to a clean, lowercase, underscore-separated string suitable for directory names."""
     text = text.lower()
-    text = re.sub(r'[^\w\s-]', '', text)
-    text = re.sub(r'[-\s]+', '_', text).strip('_')
+    text = re.sub(r"[^\w\s-]", "", text)
+    text = re.sub(r"[-\s]+", "_", text).strip("_")
     return text
+
 
 def video_id_already_exists_in_system(video_id: str) -> bool:
     """
-    Checks if a video is already in any downstream processing/output queue 
+    Checks if a video is already in any downstream processing/output queue
     to prevent reprocessing/duplicate entries.
     """
-    
+
     caption_output_directory = Path(YT_CONFIG.kaggle_output_dir_yt_captions).resolve()
     info_output_dir = Path(YT_CONFIG.kaggle_output_dir_yt_info).resolve()
-    
+
     for base_dir in [caption_output_directory, info_output_dir]:
         if not base_dir.exists():
             continue
         # Check files recursively for the video_id in the filename
-        for path in base_dir.rglob('*'):
+        for path in base_dir.rglob("*"):
             if path.is_file() and video_id in path.name:
                 return True
-            
-    if (RESTING_QUEUE.check_existence(video_id) or YT_INFO_QUEUE.check_existence(video_id) or DESTINATION_QUEUE.check_existence(video_id)):
+
+    if (
+        RESTING_QUEUE.check_existence(video_id)
+        or YT_INFO_QUEUE.check_existence(video_id)
+        or DESTINATION_QUEUE.check_existence(video_id)
+        or ARJAN_CODES_QUEUE.check_existence(video_id)
+    ):
         return True
-    
+
     return False
 
+
 # --- Core Fetching Logic (Now self-contained in cron script) ---
+
 
 def fetch_top_urls_and_push(raw_channel_name: str) -> int:
     """
@@ -104,7 +118,9 @@ def fetch_top_urls_and_push(raw_channel_name: str) -> int:
         info_dict = ydl.extract_info(channel_url, download=False)
 
         if info_dict is None or "entries" not in info_dict:
-            logger.warning("Could not find video entries from the channel URL. Aborting.")
+            logger.warning(
+                "Could not find video entries from the channel URL. Aborting."
+            )
             return 0
 
         entries = info_dict.get("entries", [])
@@ -113,7 +129,9 @@ def fetch_top_urls_and_push(raw_channel_name: str) -> int:
         # Iterate through entries (which are sorted Newest -> Oldest)
         for entry in entries:
             if new_urls_processed >= MAX_NEW_URLS:
-                logger.info(f"Limit of {MAX_NEW_URLS} new URLs reached. Stopping iteration.")
+                logger.info(
+                    f"Limit of {MAX_NEW_URLS} new URLs reached. Stopping iteration."
+                )
                 break
 
             video_id: Optional[str] = entry.get("id")
@@ -132,10 +150,12 @@ def fetch_top_urls_and_push(raw_channel_name: str) -> int:
                 "title": entry.get("title", "No Title"),
                 "description": entry.get("description"),
                 "view_count": entry.get("view_count"),
-                "channel_name": raw_channel_name # Add raw channel name for context
+                "channel_name": raw_channel_name,  # Add raw channel name for context
             }
 
-            logger.info(f"  [PROCESS] New video {video_id}. Title: {minimal_metadata['title']}")
+            logger.info(
+                f"  [PROCESS] New video {video_id}. Title: {minimal_metadata['title']}"
+            )
 
             # 2. Push to JobQueue (This replaces save_metadata_to_queue)
             DESTINATION_QUEUE.push(video_id, minimal_metadata)
@@ -153,9 +173,10 @@ def calculate_total_queue_size() -> int:
     """
     return len(DESTINATION_QUEUE)
 
+
 def run_cron_fetcher():
     logger.info(f"Starting cron fetcher for {len(CHANNELS_TO_MONITOR)} channels...")
-    total_new_files_added = 0 # Initialize counter
+    total_new_files_added = 0  # Initialize counter
 
     for i, channel_name in enumerate(CHANNELS_TO_MONITOR):
         logger.info(f"\n--- Processing Channel {i+1}/{len(CHANNELS_TO_MONITOR)} ---")
@@ -172,20 +193,24 @@ def run_cron_fetcher():
                 f"*Error Details*: {e}\n"
                 f"*Traceback*:\n```\n{tb}\n```"
             )
-            logger.error(f"An error occurred while processing channel {channel_name}: {e}")
+            logger.error(
+                f"An error occurred while processing channel {channel_name}: {e}"
+            )
             send_slack_message(message=error_message, header=SLACK_MESSAGE_HEADER)
 
         # 2. Add Jitter (Delay) between 0 and 60 seconds for the next channel
         if i < len(CHANNELS_TO_MONITOR) - 1:
             jitter_seconds = random.randint(0, 60)
-            logger.info(f"Waiting for a random jitter of {jitter_seconds} seconds before the next channel...")
+            logger.info(
+                f"Waiting for a random jitter of {jitter_seconds} seconds before the next channel..."
+            )
             time.sleep(jitter_seconds)
 
     logger.info("\nCron fetcher completed.")
-    
+
     # Calculate final metrics for the Slack message
     total_queue_size = calculate_total_queue_size()
-    
+
     send_slack_message(
         message=(
             f"✅ `Cron Job Success`: URL fetching completed for {len(CHANNELS_TO_MONITOR)} channels.\n"
@@ -193,13 +218,13 @@ def run_cron_fetcher():
             f"`New URLs added to queue`: *{total_new_files_added}*\n"
             f"`Current total queue size`: *{total_queue_size}*"
         ),
-        header = SLACK_MESSAGE_HEADER
+        header=SLACK_MESSAGE_HEADER,
     )
 
 
 if __name__ == "__main__":
     send_slack_message(
         message=f"🚀 `Cron Job Start`: Fetching URLs for {len(CHANNELS_TO_MONITOR)} channels",
-        header=SLACK_MESSAGE_HEADER
+        header=SLACK_MESSAGE_HEADER,
     )
     run_cron_fetcher()
