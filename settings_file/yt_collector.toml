@@ -20,9 +20,20 @@ KAGGLE_JOB_YT_INFO_COLLECTION_TEMPLATE_FILE = 'yt_collector/kaggle_job_info_coll
 kaggle_output_dir_yt_info = '@jinja {{this.base_metadata_dir}}/kaggle_outputs/yt_info'
 yt_info_fetching_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/info_fetching_queue'
 
+# YT video download kaggle job
+KAGGLE_JOB_YT_VIDEO_DOWNLOAD_TEMPLATE_FILE = 'yt_collector/kaggle_job_video_download.txt'
+KAGGLE_JOB_YT_VIDEO_DOWNLOAD_URLS_TO_PROCESS = 1
+YT_VIDEO_DOWNLOAD_DESTINATION_QUEUE_DIR = '@jinja {{this.base_metadata_dir}}/queue/caption_fetching_queue'
+kaggle_output_dir_yt_video_download = '@jinja {{this.base_metadata_dir}}/kaggle_outputs/yt_video_download'
+max_videos_to_download = 2
+yt_video_download_queue_dir = '@jinja {{this.base_metadata_dir}}/queue/video_download_queue'
+
 channels_to_monitor = [
-  'Fireship',
   'ArjanCodes',
+]
+
+channels_to_monitor_plus_video_download = [
+  'geetamaansigh7068',
 ]
 
 # arjan codes lessons specific params
@@ -35,10 +46,16 @@ slack_channel_id_for_arjan_codes = 'C09R0KQRBPS'
 KAGGLE_JOB_INFO_COLLECTION_URLS_TO_PROCESS = 40
 KAGGLE_JOB_MAXIMUM_URLS_TO_PROCESS = 50
 KAGGLE_JOB_MINUTES_QOUTA = 40
+KAGGLE_JOB_YT_VIDEO_DOWNLOAD_URLS_TO_PROCESS = 5
 MAX_NEW_URLS_TO_FETCH = 10
 base_metadata_dir = '@jinja {{this.home_dir}}/Data/youtube_scraper'
+
 channels_to_monitor = [
   'TinaHuang1',
   'wakemeupmornings',
   'Fireship',
+]
+
+channels_to_monitor_plus_video_download = [
+  'geetamaansigh7068',
 ]

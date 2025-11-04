@@ -30,12 +30,22 @@ from yt_collector.job_queue import JobQueue
 SLACK_MESSAGE_HEADER = f"*YT-COLLECTOR-{uuid1().hex[:8]}: `{Path(__file__).name}`*"
 
 try:
+    # Channels for the standard (caption-fetching) flow
     CHANNELS_TO_MONITOR: list[str] = YT_CONFIG.channels_to_monitor
-    MAX_NEW_URLS: int = (
-        YT_CONFIG.MAX_NEW_URLS_TO_FETCH
-    )  # Assuming MAX_NEW_URLS is available at top level config
-    # The base path for the primary queue is required to initialize the JobQueue
-    DESTINATION_QUEUE: JobQueue = JobQueue(YT_CONFIG.yt_caption_fetching_queue_dir)
+    # Channels for the video-download flow
+    CHANNELS_TO_MONITOR_PLUS_DOWNLOAD: list[str] = (
+        YT_CONFIG.channels_to_monitor_plus_video_download
+    )
+
+    MAX_NEW_URLS: int = YT_CONFIG.MAX_NEW_URLS_TO_FETCH
+
+    # Initialize Job Queues
+    # Standard queue (default destination)
+    CAPTION_FETCHING_QUEUE: JobQueue = JobQueue(YT_CONFIG.yt_caption_fetching_queue_dir)
+    # New queue for videos that require full download
+    VIDEO_DOWNLOAD_QUEUE: JobQueue = JobQueue(YT_CONFIG.yt_video_download_queue_dir)
+
+    # Downstream queues (used for existence checks)
     YT_INFO_QUEUE: JobQueue = JobQueue(YT_CONFIG.yt_info_fetching_queue_dir)
     ARJAN_CODES_QUEUE: JobQueue = JobQueue(YT_CONFIG.arjan_codes_queue)
     RESTING_QUEUE: JobQueue = JobQueue(YT_CONFIG.resting_queue_dir)
@@ -78,7 +88,8 @@ def video_id_already_exists_in_system(video_id: str) -> bool:
     if (
         RESTING_QUEUE.check_existence(video_id)
         or YT_INFO_QUEUE.check_existence(video_id)
-        or DESTINATION_QUEUE.check_existence(video_id)
+        or CAPTION_FETCHING_QUEUE.check_existence(video_id)
+        or VIDEO_DOWNLOAD_QUEUE.check_existence(video_id)
         or ARJAN_CODES_QUEUE.check_existence(video_id)
     ):
         return True
@@ -89,17 +100,19 @@ def video_id_already_exists_in_system(video_id: str) -> bool:
 # --- Core Fetching Logic (Now self-contained in cron script) ---
 
 
-def fetch_top_urls_and_push(raw_channel_name: str) -> int:
+def fetch_top_urls_and_push(
+    raw_channel_name: str, target_queue: JobQueue, channel_type: str
+) -> int:
     """
-    Fetches minimal metadata for new videos from a channel and pushes them to the JobQueue.
-    The JobQueue is initialized for the channel-specific subdirectory.
+    Fetches minimal metadata for new videos/shorts from a channel and pushes them to the JobQueue.
 
     Returns:
         int: The total number of new video URLs added to the queue.
     """
 
     new_urls_processed = 0
-    channel_url = f"https://www.youtube.com/@{raw_channel_name}/videos"
+    # Dynamically construct the URL to fetch /videos or /shorts
+    channel_url = f"https://www.youtube.com/@{raw_channel_name}/{channel_type}"
 
     logger.info("--- YouTube Minimal Metadata Fetcher (Integrated) ---")
     logger.info(f"Channel URL: {channel_url}")
@@ -157,8 +170,8 @@ def fetch_top_urls_and_push(raw_channel_name: str) -> int:
                 f"  [PROCESS] New video {video_id}. Title: {minimal_metadata['title']}"
             )
 
-            # 2. Push to JobQueue (This replaces save_metadata_to_queue)
-            DESTINATION_QUEUE.push(video_id, minimal_metadata)
+            # 2. Push to JobQueue
+            target_queue.push(video_id, minimal_metadata)
             new_urls_processed += 1
 
         logger.info("--- Fetch Complete ---")
@@ -168,30 +181,49 @@ def fetch_top_urls_and_push(raw_channel_name: str) -> int:
 
 def calculate_total_queue_size() -> int:
     """
-    Calculates the total size of all job files under the base queue directory.
-    This replaces the functionality of get_all_queue_paths_absolute().
+    Calculates the total size of all job files under the primary queues.
     """
-    return len(DESTINATION_QUEUE)
+    return len(CAPTION_FETCHING_QUEUE) + len(VIDEO_DOWNLOAD_QUEUE)
 
 
 def run_cron_fetcher():
-    logger.info(f"Starting cron fetcher for {len(CHANNELS_TO_MONITOR)} channels...")
+    # Define the list of channels, their corresponding queues, and the YouTube section to fetch
+    CHANNELS_WITH_QUEUES_AND_TYPE = []
+    # 1. Standard Channels -> Caption Queue (fetches /videos)
+    for channel in CHANNELS_TO_MONITOR:
+        CHANNELS_WITH_QUEUES_AND_TYPE.append(
+            (channel, CAPTION_FETCHING_QUEUE, "videos")
+        )
+    # 2. Video Download Channels -> Video Download Queue (fetches /shorts)
+    for channel in CHANNELS_TO_MONITOR_PLUS_DOWNLOAD:
+        CHANNELS_WITH_QUEUES_AND_TYPE.append((channel, VIDEO_DOWNLOAD_QUEUE, "shorts"))
+
+    total_channels = len(CHANNELS_WITH_QUEUES_AND_TYPE)
+    logger.info(f"Starting cron fetcher for {total_channels} channels...")
     total_new_files_added = 0  # Initialize counter
 
-    for i, channel_name in enumerate(CHANNELS_TO_MONITOR):
-        logger.info(f"\n--- Processing Channel {i+1}/{len(CHANNELS_TO_MONITOR)} ---")
+    for i, (channel_name, target_queue, channel_type) in enumerate(
+        CHANNELS_WITH_QUEUES_AND_TYPE
+    ):
+        queue_name = target_queue.queue_path.name
+        logger.info(
+            f"\
+--- Processing Channel {i+1}/{total_channels} (Queue: {queue_name}, Type: {channel_type}) ---"
+        )
         logger.info(f"Channel URL: {channel_name}")
 
         # 1. Fetch URLs and push to the channel-specific JobQueue
         try:
-            new_files_count = fetch_top_urls_and_push(channel_name)
+            new_files_count = fetch_top_urls_and_push(
+                channel_name, target_queue, channel_type
+            )  # Updated call
             total_new_files_added += new_files_count
         except Exception as e:
             tb = traceback.format_exc()
             error_message = (
-                f"🚨 *Channel Error*: Failed to process channel `{channel_name}`.\n"
+                f"🚨 *Channel Error*: Failed to process channel `{channel_name}` (Queue: {queue_name}, Type: {channel_type}).\n"
                 f"*Error Details*: {e}\n"
-                f"*Traceback*:\n```\n{tb}\n```"
+                f"*Traceback*:\n```{tb}\n```"
             )
             logger.error(
                 f"An error occurred while processing channel {channel_name}: {e}"
@@ -199,23 +231,29 @@ def run_cron_fetcher():
             send_slack_message(message=error_message, header=SLACK_MESSAGE_HEADER)
 
         # 2. Add Jitter (Delay) between 0 and 60 seconds for the next channel
-        if i < len(CHANNELS_TO_MONITOR) - 1:
+        if i < total_channels - 1:
             jitter_seconds = random.randint(0, 60)
             logger.info(
                 f"Waiting for a random jitter of {jitter_seconds} seconds before the next channel..."
             )
             time.sleep(jitter_seconds)
 
-    logger.info("\nCron fetcher completed.")
+    logger.info(
+        "\
+Cron fetcher completed."
+    )
 
     # Calculate final metrics for the Slack message
     total_queue_size = calculate_total_queue_size()
 
     send_slack_message(
         message=(
-            f"✅ `Cron Job Success`: URL fetching completed for {len(CHANNELS_TO_MONITOR)} channels.\n"
-            f"*Metrics Summary*\n"
-            f"`New URLs added to queue`: *{total_new_files_added}*\n"
+            f"✅ `Cron Job Success`: URL fetching completed for {total_channels} channels.\
+"
+            f"*Metrics Summary*\
+"
+            f"`New URLs added to queue`: *{total_new_files_added}*\
+"
             f"`Current total queue size`: *{total_queue_size}*"
         ),
         header=SLACK_MESSAGE_HEADER,
@@ -223,8 +261,12 @@ def run_cron_fetcher():
 
 
 if __name__ == "__main__":
+    # Calculate total channels for the initial message
+    total_channels = list(
+        set(list(CHANNELS_TO_MONITOR) + list(CHANNELS_TO_MONITOR_PLUS_DOWNLOAD))
+    )
     send_slack_message(
-        message=f"🚀 `Cron Job Start`: Fetching URLs for {len(CHANNELS_TO_MONITOR)} channels",
+        message=f"🚀 `Cron Job Start`: Fetching URLs for {total_channels} channels",
         header=SLACK_MESSAGE_HEADER,
     )
     run_cron_fetcher()
