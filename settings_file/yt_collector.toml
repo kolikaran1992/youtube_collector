@@ -29,6 +29,7 @@ channels_to_monitor = [
 arjan_codes_agent_output_dir = 'arjan_codes_lessons'
 arjan_codes_channel_name = 'arjancodes'
 arjan_codes_queue = '@jinja {{this.base_metadata_dir}}/queue/arjan_codes_queue'
+slack_channel_id_for_arjan_codes = 'C09R0KQRBPS'
 
 [cron]
 KAGGLE_JOB_INFO_COLLECTION_URLS_TO_PROCESS = 40
